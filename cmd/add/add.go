@@ -72,33 +72,29 @@ func writeCv2(nodes []Node, maxRank int, w io.Writer) {
 	fmt.Fprintln(w, "#include <stdbool.h>")
 	fmt.Fprintln(w, "static int evaluate(uint8_t *input){")
 
+	parents := make(map[uint16]int)
 	entry := 0
 	for _, n := range nodes {
-		if n.v == 0 {
-			entry = int(n.id)
-			break
+		parents[n.id] = 0
+	}
+	for _, n := range nodes {
+		parents[n.lo]++
+		parents[n.hi]++
+	}
+	found := false
+	for n, p := range parents {
+		if p == 0 {
+			entry = int(n)
+			found = true
 		}
+	}
+	if !found {
+		fmt.Fprintln(os.Stderr, "no entry node found")
+		os.Exit(1)
 	}
 	fmt.Fprintf(w, "\tgoto node%d;\n", entry)
 
-	// fmt.Fprintf(w, "node0: return false;\n")
-	// fmt.Fprintf(w, "node1: return true;\n")
 	for _, n := range nodes {
-		/* if i < 2  {
-			continue
-		} */
-		/* if n.isTerminal {
-			fmt.Fprintf(w, "node%d:\n", n.id)
-			fmt.Fprintf(w, "\tif((input>>%d) & 0x1)\n", n.v)
-			fmt.Fprintf(w, "\t\treturn %d;\n", n.hi)
-			fmt.Fprintf(w, "\telse \n\t\treturn %d;\n", n.lo)
-		} else {
-			fmt.Fprintf(w, "node%d:\n", n.id)
-			fmt.Fprintf(w, "\tif((input>>%d) & 0x1)\n", n.v)
-			fmt.Fprintf(w, "\t\tgoto node%d;\n", n.hi)
-			fmt.Fprintf(w, "\telse \n\t\tgoto node%d;\n", n.lo)
-		} */
-
 		fmt.Fprintf(w, "node%d:\n", n.id)
 		fmt.Fprintf(w, "\tif((input[%d]>>%d) & 0x1)\n", n.v/8, 7-(n.v%8))
 		if n.isTerminalhi {
@@ -111,6 +107,63 @@ func writeCv2(nodes []Node, maxRank int, w io.Writer) {
 		} else {
 			fmt.Fprintf(w, "\telse \n\t\tgoto node%d;\n", n.lo)
 		}
+
+	}
+	fmt.Fprintln(w, "}")
+}
+
+func writeEncoder(nodes []Node, maxRank int, w io.Writer) {
+	fmt.Fprintln(w, "#include <stdint.h>")
+	fmt.Fprintln(w, "#include <stdbool.h>")
+	fmt.Fprintln(w, "static int cg_encode(uint8_t *input){")
+	fmt.Fprintln(w, "\t bool b;")
+
+	parents := make(map[uint16]int)
+	entry := 0
+	for _, n := range nodes {
+		parents[n.id] = 0
+	}
+	for _, n := range nodes {
+		parents[n.lo]++
+		parents[n.hi]++
+	}
+	found := false
+	for n, p := range parents {
+		if p == 0 {
+			entry = int(n)
+			found = true
+		}
+	}
+	if !found {
+		fmt.Fprintln(os.Stderr, "no entry node found")
+		os.Exit(1)
+	}
+	fmt.Fprintf(w, "\tgoto node%d;\n", entry)
+
+	for _, n := range nodes {
+		fmt.Fprintf(w, "node%d:\n", n.id)
+		if n.isTerminalhi && n.hi == 0 {
+			fmt.Fprintf(w, "\tb = false;\n")
+		} else if n.isTerminallo && n.lo == 0 {
+			fmt.Fprintf(w, "\tb = true;\n")
+		} else {
+			fmt.Fprintf(w, "\tb = randbool();\n")
+		}
+		fmt.Fprintf(w, "\tif (b) {\n")
+		fmt.Fprintf(w, "\t\tinput[%d] |= (1 << %d);\n", n.v/8, 7-(n.v%8))
+		if n.isTerminalhi {
+			fmt.Fprintf(w, "\t\treturn %d;\n", n.hi)
+		} else {
+			fmt.Fprintf(w, "\t\tgoto node%d;\n", n.hi)
+		}
+		fmt.Fprintf(w, "\t} else {\n")
+		fmt.Fprintf(w, "\t\tinput[%d] &= ~(1 << %d);\n", n.v/8, 7-(n.v%8))
+		if n.isTerminallo {
+			fmt.Fprintf(w, "\t\treturn %d;\n", n.lo)
+		} else {
+			fmt.Fprintf(w, "\t\tgoto node%d;\n", n.lo)
+		}
+		fmt.Fprintf(w, "\t}\n")
 
 	}
 	fmt.Fprintln(w, "}")
@@ -129,6 +182,7 @@ func writeBinary(nodes []Node, w io.Writer) {
 func main() {
 	dot := flag.Bool("graph", false, "produce graphviz dot graph")
 	binary := flag.Bool("binary", false, "produce binary repsentation/format")
+	encode := flag.Bool("encode", false, "produce encoder")
 
 	flag.Parse()
 	args := flag.Args()
@@ -224,6 +278,8 @@ func main() {
 		writeDot(nodes, os.Stdout)
 	} else if *binary {
 		writeBinary(nodes, os.Stdout)
+	} else if *encode {
+		writeEncoder(nodes, maxRank, os.Stdout)
 	} else {
 		// writeC(nodes, os.Stdout)
 		writeCv2(nodes, maxRank, os.Stdout)

@@ -110,6 +110,9 @@ func main() {
 			}
 		}
 		fmt.Printf("%d %d", NodeIDs[lo], NodeIDs[hi])
+		if lo == "\"0x503aa96\"" {
+			fmt.Fprintln(os.Stderr, NodeIDs[source])
+		}
 
 		fmt.Println()
 	}

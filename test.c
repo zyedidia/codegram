@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "smaller.bdd.c"
+#include "x86.bdd.c"
 
 int main() {
     /* uint8_t code[] = { */
@@ -8,9 +8,13 @@ int main() {
     /* }; */
 
     uint8_t code[] = {
-        0x00,
-        0x00,
+        0x55,
     };
+
+    /* uint8_t code[] = { */
+    /*     0x00, */
+    /*     0x00, */
+    /* }; */
 
     int r = evaluate(code);
     printf("returned: %d\n", r);
