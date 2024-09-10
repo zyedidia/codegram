@@ -3,3 +3,4 @@
 *.bdd.c
 a.out
 *.pdf
+!generated/*
