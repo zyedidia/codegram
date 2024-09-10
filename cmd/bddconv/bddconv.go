@@ -34,8 +34,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Fprintln(os.Stderr, len(G.Nodes.Nodes))
-
 	maxTerminal := 0
 	for _, n := range G.Nodes.Nodes {
 		if label, ok := n.Attrs["label"]; ok {

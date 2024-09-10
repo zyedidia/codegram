@@ -16,7 +16,7 @@ randbyte()
     return rand();
 }
 
-#include "out.encode.c"
+#include "generated/x86.encode.c"
 
 int
 main()

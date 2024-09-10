@@ -3,4 +3,7 @@
 *.bdd.c
 a.out
 *.pdf
-!generated/*
+!generated/x86.dot
+test
+encode
+.knit

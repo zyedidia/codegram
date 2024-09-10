@@ -1,0 +1,14 @@
+return b{
+    $ test: test.c generated/x86.bdd.c
+        gcc $input -O2 -o $output
+    $ encode: encode.c generated/x86.encode.c
+        gcc $input -O2 -o $output
+    $ generated/x86.bdd.txt: generated/x86.dot
+        go run cmd/bddconv/bddconv.go $input > $output
+    $ generated/x86.bdd.c: generated/x86.bdd.txt
+        go run cmd/add/add.go $input > $output
+    $ generated/x86.encode.c: generated/x86.bdd.txt
+        go run cmd/add/add.go -encode $input > $output
+    $ generated/x86.bdd.dot: generated/x86.bdd.txt
+        go run cmd/add/add.go -graph $input > $output
+}
