@@ -8,3 +8,4 @@ generated/*
 test
 encode
 .knit
+bench
