@@ -1,0 +1,8 @@
+return b{
+    $ fadec/build:
+        cd fadec && meson setup build
+    $ fadec/build/fadec-encode2-public.inc:B: fadec/build
+        ninja -C fadec/build
+    $ iter.inc: fadec/build/fadec-encode2-public.inc
+        go run gen.go fadec/build/fadec-encode2-public.inc > iter.inc
+}
