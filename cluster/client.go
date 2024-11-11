@@ -85,6 +85,8 @@ func run(conn net.Conn, cpu int, brand string, wg *sync.WaitGroup) {
 	fuzzer := file.Name()
 	file.Close()
 
+	n := 0
+
 	for {
 		var req FuzzRequest
 		if err := decoder.Decode(&req); err != nil {
@@ -92,7 +94,7 @@ func run(conn net.Conn, cpu int, brand string, wg *sync.WaitGroup) {
 			break
 		}
 
-		log.Printf("fuzz request (seed=%x, size=%x)\n", req.Seed, req.Size)
+		log.Printf("%d: fuzz request (seed=%x, size=%x)\n", n, req.Seed, req.Size)
 
 		err := os.WriteFile(fuzzer, req.Fuzzer, os.ModePerm)
 		if err != nil {
@@ -110,6 +112,7 @@ func run(conn net.Conn, cpu int, brand string, wg *sync.WaitGroup) {
 			log.Println("fuzz response error:", err)
 			break
 		}
+		n++
 	}
 }
 
