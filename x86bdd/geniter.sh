@@ -1,5 +1,5 @@
 #!/bin/sh
 #
-# usage: ./geniter.sh INPUT OUTPUT
+# usage: ./geniter.sh PUB_INPUT PRIV_INPUT OUTPUT
 
-go run geniter.go $1 > $2
+go run ../geniter.go $1 > $3

@@ -9,3 +9,4 @@ test
 encode
 .knit
 bench
+/fuzznet/fuzzer

@@ -18,6 +18,6 @@ iter_inc = custom_target(
 
 genbdd = executable(
   'genbdd',
-  sources: ['genbdd.cc'],
+  sources: ['genbdd.cc', iter_inc],
   dependencies: [fadec_lib, cudd],
 )
