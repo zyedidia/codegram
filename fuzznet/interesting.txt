@@ -1,0 +1,1 @@
+~/programming/lfi/build/lfi-fuzz/lfi-fuzz -s dcc436ba -n 10000000 -r
