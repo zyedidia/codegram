@@ -26,9 +26,8 @@ type Client struct {
 
 type ClientGroup struct {
 	// Protects Clients
-	Lock        sync.Mutex
-	Clients     []*Client
-	MicroArches map[string]bool
+	Lock    sync.Mutex
+	Clients []*Client
 
 	Sent uint64
 }
@@ -47,13 +46,18 @@ func hashbytes(b []byte) uint64 {
 	return h.Sum64()
 }
 
+type Result struct {
+	FuzzResponse
+	MicroArch string
+}
+
 func (cg *ClientGroup) FuzzIteration() {
 	// Generate a new fuzz request.
 	req := FuzzRequest{
-		Id:     cg.Sent,
-		Seed:   seed(),
-		Size:   Size,
-		Fuzzer: Fuzzer,
+		Id:   cg.Sent,
+		Seed: seed(),
+		Size: Size,
+		// Fuzzer: Fuzzer,
 	}
 	cg.Sent++
 
@@ -79,7 +83,7 @@ func (cg *ClientGroup) FuzzIteration() {
 	wg.Wait()
 
 	var active []*Client
-	var results []FuzzResponse
+	var results []Result
 
 	// Receive fuzz response from all clients.
 	for i, c := range clients {
@@ -91,7 +95,10 @@ func (cg *ClientGroup) FuzzIteration() {
 				if err != nil {
 					status[i] = false
 				} else {
-					results = append(results, resp)
+					results = append(results, Result{
+						FuzzResponse: resp,
+						MicroArch:    c.Info.MicroArch,
+					})
 					active = append(active, c)
 				}
 			}
@@ -101,6 +108,9 @@ func (cg *ClientGroup) FuzzIteration() {
 	wg.Wait()
 
 	cg.Lock.Lock()
+	if len(cg.Clients) > len(clients) {
+		active = append(active, cg.Clients[len(clients):]...)
+	}
 	cg.Clients = active
 	cg.Lock.Unlock()
 
@@ -120,18 +130,28 @@ func (cg *ClientGroup) FuzzIteration() {
 		}
 	}
 	if !agree {
-		log.Printf("%d: NOT OK (seed=%x, size=%d, groupsize=%d)\n", req.Id, req.Seed, req.Size, len(active))
+		log.Printf("%d: NOT OK (seed=%x, size=%d, groupsize=%d)\n", req.Id, req.Seed, req.Size, len(results))
 		for i, c := range results {
-			log.Printf("\tclient %d: hash=%x\n", i, c.Hash)
+			log.Printf("\tclient %d (%s): hash=%x\n", i, c.MicroArch, c.Hash)
 		}
 	} else {
-		log.Printf("%d: OK (seed=%x, size=%d, hash=%x, groupsize=%d)\n", req.Id, req.Seed, req.Size, hash, len(active))
+		log.Printf("%d: OK (seed=%x, size=%d, hash=%x, groupsize=%d)\n", req.Id, req.Seed, req.Size, hash, len(results))
 	}
 }
 
 func (cg *ClientGroup) Append(c *Client) {
 	cg.Lock.Lock()
 	cg.Clients = append(cg.Clients, c)
-	cg.MicroArches[c.Info.MicroArch] = true
 	cg.Lock.Unlock()
+}
+
+func (cg *ClientGroup) HasMicroArch(m string) bool {
+	cg.Lock.Lock()
+	defer cg.Lock.Unlock()
+	for _, c := range cg.Clients {
+		if c.Info.MicroArch == m {
+			return true
+		}
+	}
+	return false
 }

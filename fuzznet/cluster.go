@@ -1,6 +1,9 @@
 package fuzznet
 
-import "sync"
+import (
+	"log"
+	"sync"
+)
 
 type ClientCluster struct {
 	Lock   sync.Mutex
@@ -11,15 +14,14 @@ func (cc *ClientCluster) Append(c *Client) {
 	cc.Lock.Lock()
 	defer cc.Lock.Unlock()
 	for _, cg := range cc.Groups {
-		if !cg.MicroArches[c.Info.MicroArch] {
+		if !cg.HasMicroArch(c.Info.MicroArch) {
 			cg.Append(c)
 			return
 		}
 	}
+	log.Println("creating new group for", c.Info.MicroArch)
 	// Make a new group
-	cg := &ClientGroup{
-		MicroArches: make(map[string]bool),
-	}
+	cg := &ClientGroup{}
 	cg.Append(c)
 	cc.Groups = append(cc.Groups, cg)
 }
