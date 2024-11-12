@@ -12,4 +12,6 @@ bench
 /fuzznet/fuzzer
 /fuzznet/cmd/fuzznet-server/fuzznet-server
 /fuzznet/cmd/fuzznet-client/fuzznet-client
-/fuzznet/cmd/fuzznet-client/lfi-fuzz
+/fuzznet/cmd/fuzznet-client/lfi-fuzz*
+todo.txt
+interesting.txt

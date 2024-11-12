@@ -2,15 +2,11 @@ package fuzznet
 
 import (
 	"encoding/gob"
-	"hash/fnv"
 	"log"
 	"math/rand"
 	"net"
 	"sync"
 )
-
-var Size uint64
-var Fuzzer []byte
 
 type ClientInfo struct {
 	Arch      string
@@ -37,12 +33,6 @@ func seed() uint64 {
 	return uint64(u)
 }
 
-func hashbytes(b []byte) uint64 {
-	h := fnv.New64a()
-	h.Write(b)
-	return h.Sum64()
-}
-
 type Result struct {
 	FuzzResponse
 	MicroArch string
@@ -50,11 +40,12 @@ type Result struct {
 
 func (cg *ClientGroup) FuzzIteration(id uint64) (uint64, bool) {
 	// Generate a new fuzz request.
+	o := GetOptions()
 	req := FuzzRequest{
-		Id:   id,
-		Seed: seed(),
-		Size: Size,
-		// Fuzzer: Fuzzer,
+		Id:         id,
+		Seed:       seed(),
+		Size:       o.Size,
+		FuzzerHash: o.FuzzerHash,
 	}
 
 	clients := cg.Clients

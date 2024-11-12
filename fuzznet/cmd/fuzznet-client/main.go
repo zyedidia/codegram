@@ -41,39 +41,52 @@ func runcmd(cmd string, args ...string) uint64 {
 	return h.Sum64()
 }
 
-func run(conn net.Conn, cpu int, brand string, wg *sync.WaitGroup) {
+// Protects fuzzer file creation
+var lock sync.Mutex
+
+func run(conn net.Conn, cpu int, brand string) {
 	msg, err := json.Marshal(&fuzznet.Register{
 		Arch:      runtime.GOARCH,
 		MicroArch: brand,
-		Password:  fuzznet.Password,
+		Password:  os.Getenv("FUZZNETPASS"),
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	defer wg.Done()
 	defer conn.Close()
 
 	_, err = conn.Write(msg)
 	if err != nil {
-		fmt.Println("Error writing:", err.Error())
-		os.Exit(1)
+		log.Fatal("Error writing:", err.Error())
 	}
-
-	log.Printf("%s: registered CPU %d\n", brand, cpu)
 
 	encoder := gob.NewEncoder(conn)
 	decoder := gob.NewDecoder(conn)
 
-	// file, err := os.CreateTemp(".", "lfi-fuzz")
-	// if err != nil {
-	// 	log.Println("error creating lfi-fuzz:", err)
-	// 	return
-	// }
-	// fuzzer := file.Name()
-	// file.Close()
+	var regresp fuzznet.RegisterResponse
+	if err := decoder.Decode(&regresp); err != nil {
+		log.Fatal("registration error:", err)
+	}
 
-	fuzzer := "./lfi-fuzz"
+	lock.Lock()
+	fuzzer := fmt.Sprintf("./lfi-fuzz-%x", regresp.FuzzerHash)
+	if _, err := os.Stat(fuzzer); err != nil {
+		f, err := os.Create(fuzzer)
+		if err != nil {
+			log.Fatal("error creating fuzzer:", err)
+		}
+		f.Chmod(os.ModePerm)
+		_, err = f.Write(regresp.Fuzzer)
+		if err != nil {
+			log.Fatal("error writing fuzzer:", err)
+		}
+		log.Println("downloaded new fuzzer:", fuzzer)
+		f.Close()
+	}
+	lock.Unlock()
+
+	log.Printf("%s: registered CPU %d\n", brand, cpu)
 
 	n := 0
 
@@ -83,17 +96,14 @@ func run(conn net.Conn, cpu int, brand string, wg *sync.WaitGroup) {
 			log.Println("fuzz request error:", err)
 			break
 		}
+		log.Println("fuzz request")
+
+		if req.FuzzerHash != regresp.FuzzerHash {
+			log.Println("new fuzzer required, reconnecting...")
+			break
+		}
 
 		log.Printf("%d: fuzz request (seed=%x, size=%d)\n", n, req.Seed, req.Size)
-
-		// log.Printf("writing to %s\n", fuzzer)
-		// err := os.WriteFile(fuzzer, req.Fuzzer, os.ModePerm)
-		// if err != nil {
-		// 	log.Println("could not write lfi-fuzz:", err)
-		// 	break
-		// }
-		// os.Chmod(fuzzer, os.ModePerm)
-		// log.Println("done", fuzzer)
 
 		hash := runcmd("taskset", "-c", fmt.Sprintf("%d", cpu), fuzzer, "-s", fmt.Sprintf("%x", req.Seed), "-n", fmt.Sprintf("%d", req.Size), "-r")
 
@@ -107,8 +117,6 @@ func run(conn net.Conn, cpu int, brand string, wg *sync.WaitGroup) {
 		}
 		n++
 	}
-
-	// os.Remove(fuzzer)
 }
 
 func main() {
@@ -127,19 +135,22 @@ func main() {
 		brand = fmt.Sprintf("%s (%d)", brand, *id)
 	}
 
-	for {
-		var wg sync.WaitGroup
-		for i := 0; i < *cores; i++ {
-			conn, err := net.Dial("tcp", "zby.scs.stanford.edu:8090")
-			if err != nil {
-				fmt.Println("error connecting:", err.Error())
-				fmt.Println("trying again in 5 seconds...")
-				time.Sleep(5 * time.Second)
-				break
+	var wg sync.WaitGroup
+	for i := 0; i < *cores; i++ {
+		wg.Add(1)
+		go func(i int) {
+			for {
+				conn, err := net.Dial("tcp", "zby.scs.stanford.edu:8090")
+				if err != nil {
+					fmt.Println("error connecting:", err.Error())
+					fmt.Println("trying again in 5 seconds...")
+					time.Sleep(5 * time.Second)
+					continue
+				}
+				run(conn, *cpu+i, brand)
 			}
-			wg.Add(1)
-			go run(conn, *cpu+i, brand, &wg)
-		}
-		wg.Wait()
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
 }

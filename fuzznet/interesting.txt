@@ -1,2 +1,2 @@
-lfi-fuzz -s dcc436ba -n 10000000 -r
-lfi-fuzz -s 92ff115e -n 10000000 -r
+./lfi-fuzz -s 37684f21 -n 100000 -r
+seed=1b7de48 size=1000000

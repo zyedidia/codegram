@@ -16,14 +16,15 @@ var cluster = &fuzznet.ClientCluster{}
 
 func main() {
 	size := flag.Int("size", 10000000, "size of one chunk")
+	fuzzer := flag.String("fuzzer", "/home/zyedidia/programming/lfi/build/lfi-fuzz/lfi-fuzz", "path to fuzzer binary")
 	flag.Parse()
 
-	data, err := os.ReadFile("/home/zyedidia/programming/lfi/build/lfi-fuzz/lfi-fuzz")
+	data, err := os.ReadFile(*fuzzer)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fuzznet.Fuzzer = data
-	fuzznet.Size = uint64(*size)
+
+	fuzznet.SetOptions(data, uint64(*size))
 
 	listener, err := net.Listen("tcp", ":8090")
 	if err != nil {
@@ -70,13 +71,15 @@ func register(conn net.Conn) {
 		return
 	}
 
-	if reg.Password != fuzznet.Password {
+	password := os.Getenv("FUZZNETPASS")
+
+	if reg.Password != password {
 		log.Println("incorrect password")
 		conn.Close()
 		return
 	}
 
-	cluster.Append(&fuzznet.Client{
+	c := &fuzznet.Client{
 		Info: fuzznet.ClientInfo{
 			Arch:      reg.Arch,
 			MicroArch: reg.MicroArch,
@@ -84,7 +87,21 @@ func register(conn net.Conn) {
 		Conn:    conn,
 		Encoder: gob.NewEncoder(conn),
 		Decoder: gob.NewDecoder(conn),
-	})
+	}
+
+	o := fuzznet.GetOptions()
+	resp := fuzznet.RegisterResponse{
+		Fuzzer:     o.Fuzzer,
+		FuzzerHash: o.FuzzerHash,
+	}
+	err = c.Encoder.Encode(resp)
+	if err != nil {
+		log.Println("registration response failed:", err)
+		conn.Close()
+		return
+	}
+
+	cluster.Append(c)
 
 	log.Println("new client registered:", reg.MicroArch)
 }
