@@ -18,18 +18,15 @@ type ClientInfo struct {
 }
 
 type Client struct {
-	Info    ClientInfo
-	Conn    net.Conn
-	Encoder *gob.Encoder
-	Decoder *gob.Decoder
+	Info     ClientInfo
+	Conn     net.Conn
+	Encoder  *gob.Encoder
+	Decoder  *gob.Decoder
+	Inactive bool
 }
 
 type ClientGroup struct {
-	// Protects Clients
-	Lock    sync.Mutex
 	Clients []*Client
-
-	Sent uint64
 }
 
 func seed() uint64 {
@@ -51,22 +48,16 @@ type Result struct {
 	MicroArch string
 }
 
-func (cg *ClientGroup) FuzzIteration() {
+func (cg *ClientGroup) FuzzIteration(id uint64) (uint64, bool) {
 	// Generate a new fuzz request.
 	req := FuzzRequest{
-		Id:   cg.Sent,
+		Id:   id,
 		Seed: seed(),
 		Size: Size,
 		// Fuzzer: Fuzzer,
 	}
-	cg.Sent++
 
-	cg.Lock.Lock()
-	clients := make([]*Client, len(cg.Clients))
-	copy(clients, cg.Clients)
-	cg.Lock.Unlock()
-
-	status := make([]bool, len(clients))
+	clients := cg.Clients
 
 	// Send fuzz requests to all clients.
 	var wg sync.WaitGroup
@@ -74,8 +65,8 @@ func (cg *ClientGroup) FuzzIteration() {
 		wg.Add(1)
 		go func(i int, c *Client) {
 			err := c.Encoder.Encode(req)
-			if err == nil {
-				status[i] = true
+			if err != nil {
+				c.Inactive = true
 			}
 			wg.Done()
 		}(i, c)
@@ -89,11 +80,11 @@ func (cg *ClientGroup) FuzzIteration() {
 	for i, c := range clients {
 		wg.Add(1)
 		go func(i int, c *Client) {
-			if status[i] {
+			if !c.Inactive {
 				var resp FuzzResponse
 				err := c.Decoder.Decode(&resp)
 				if err != nil {
-					status[i] = false
+					c.Inactive = true
 				} else {
 					results = append(results, Result{
 						FuzzResponse: resp,
@@ -107,18 +98,11 @@ func (cg *ClientGroup) FuzzIteration() {
 	}
 	wg.Wait()
 
-	cg.Lock.Lock()
-	if len(cg.Clients) > len(clients) {
-		active = append(active, cg.Clients[len(clients):]...)
-	}
-	cg.Clients = active
-	cg.Lock.Unlock()
-
 	// Check fuzz response
 	if len(active) < len(clients) {
 		log.Println("client group has been reduced to", len(active))
 		if len(active) <= 1 {
-			return
+			return 0, true
 		}
 	}
 
@@ -131,23 +115,21 @@ func (cg *ClientGroup) FuzzIteration() {
 	}
 	if !agree {
 		log.Printf("%d: NOT OK (seed=%x, size=%d, groupsize=%d)\n", req.Id, req.Seed, req.Size, len(results))
-		for i, c := range results {
-			log.Printf("\tclient %d (%s): hash=%x\n", i, c.MicroArch, c.Hash)
+		for _, c := range results {
+			log.Printf("\t%s: hash=%x\n", c.MicroArch, c.Hash)
 		}
 	} else {
 		log.Printf("%d: OK (seed=%x, size=%d, hash=%x, groupsize=%d)\n", req.Id, req.Seed, req.Size, hash, len(results))
 	}
+
+	return req.Size, agree
 }
 
 func (cg *ClientGroup) Append(c *Client) {
-	cg.Lock.Lock()
 	cg.Clients = append(cg.Clients, c)
-	cg.Lock.Unlock()
 }
 
 func (cg *ClientGroup) HasMicroArch(m string) bool {
-	cg.Lock.Lock()
-	defer cg.Lock.Unlock()
 	for _, c := range cg.Clients {
 		if c.Info.MicroArch == m {
 			return true

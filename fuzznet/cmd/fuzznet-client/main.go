@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/klauspost/cpuid/v2"
 )
@@ -122,16 +123,23 @@ func main() {
 		log.Fatal(brand, "does not support SSE1-4.2")
 	}
 
-	var wg sync.WaitGroup
-	for i := 0; i < *cores; i++ {
-		// Connect to the server
-		conn, err := net.Dial("tcp", "zby.scs.stanford.edu:8090")
-		if err != nil {
-			fmt.Println("Error connecting:", err.Error())
-			os.Exit(1)
-		}
-		wg.Add(1)
-		go run(conn, *cpu+i, fmt.Sprintf("%s (%d)", brand, *id), &wg)
+	if *id != 0 {
+		brand = fmt.Sprintf("%s (%d)", brand, *id)
 	}
-	wg.Wait()
+
+	for {
+		var wg sync.WaitGroup
+		for i := 0; i < *cores; i++ {
+			conn, err := net.Dial("tcp", "zby.scs.stanford.edu:8090")
+			if err != nil {
+				fmt.Println("error connecting:", err.Error())
+				fmt.Println("trying again in 5 seconds...")
+				time.Sleep(5 * time.Second)
+				break
+			}
+			wg.Add(1)
+			go run(conn, *cpu+i, brand, &wg)
+		}
+		wg.Wait()
+	}
 }

@@ -4,21 +4,26 @@ import (
 	"codegram/fuzznet"
 	"encoding/gob"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 )
 
 var cluster = &fuzznet.ClientCluster{}
 
 func main() {
+	size := flag.Int("size", 10000000, "size of one chunk")
+	flag.Parse()
+
 	data, err := os.ReadFile("/home/zyedidia/programming/lfi/build/lfi-fuzz/lfi-fuzz")
 	if err != nil {
 		log.Fatal(err)
 	}
 	fuzznet.Fuzzer = data
-	fuzznet.Size = 10000000
+	fuzznet.Size = uint64(*size)
 
 	listener, err := net.Listen("tcp", ":8090")
 	if err != nil {
@@ -40,6 +45,9 @@ func main() {
 			register(conn)
 		}
 	}()
+
+	http.HandleFunc("/fuzznet", dashboard)
+	go http.ListenAndServe(":8091", nil)
 
 	for {
 		cluster.FuzzIteration()
