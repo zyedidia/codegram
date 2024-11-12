@@ -125,7 +125,7 @@ func main() {
 	var wg sync.WaitGroup
 	for i := 0; i < *cores; i++ {
 		// Connect to the server
-		conn, err := net.Dial("tcp", "localhost:8090")
+		conn, err := net.Dial("tcp", "zby.scs.stanford.edu:8090")
 		if err != nil {
 			fmt.Println("Error connecting:", err.Error())
 			os.Exit(1)

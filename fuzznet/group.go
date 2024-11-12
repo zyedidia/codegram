@@ -100,6 +100,10 @@ func (cg *ClientGroup) FuzzIteration() {
 	}
 	wg.Wait()
 
+	cg.Lock.Lock()
+	cg.Clients = active
+	cg.Lock.Unlock()
+
 	// Check fuzz response
 	if len(active) < len(clients) {
 		log.Println("client group has been reduced to", len(active))
@@ -123,10 +127,6 @@ func (cg *ClientGroup) FuzzIteration() {
 	} else {
 		log.Printf("%d: OK (seed=%x, size=%d, hash=%x, groupsize=%d)\n", req.Id, req.Seed, req.Size, hash, len(active))
 	}
-
-	cg.Lock.Lock()
-	cg.Clients = active
-	cg.Lock.Unlock()
 }
 
 func (cg *ClientGroup) Append(c *Client) {
