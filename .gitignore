@@ -15,3 +15,6 @@ bench
 /fuzznet/cmd/fuzznet-client/lfi-fuzz*
 todo.txt
 interesting.txt
+*.log
+*.log.gz
+*.bin

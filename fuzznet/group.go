@@ -38,7 +38,7 @@ type Result struct {
 	MicroArch string
 }
 
-func (cg *ClientGroup) FuzzIteration(id uint64) (uint64, bool) {
+func (cg *ClientGroup) FuzzIteration(id uint64) (uint64, bool, bool) {
 	// Generate a new fuzz request.
 	o := GetOptions()
 	req := FuzzRequest{
@@ -67,6 +67,8 @@ func (cg *ClientGroup) FuzzIteration(id uint64) (uint64, bool) {
 	var active []*Client
 	var results []Result
 
+	var lock sync.Mutex
+
 	// Receive fuzz response from all clients.
 	for i, c := range clients {
 		wg.Add(1)
@@ -77,11 +79,13 @@ func (cg *ClientGroup) FuzzIteration(id uint64) (uint64, bool) {
 				if err != nil {
 					c.Inactive = true
 				} else {
+					lock.Lock()
 					results = append(results, Result{
 						FuzzResponse: resp,
 						MicroArch:    c.Info.MicroArch,
 					})
 					active = append(active, c)
+					lock.Unlock()
 				}
 			}
 			wg.Done()
@@ -93,7 +97,7 @@ func (cg *ClientGroup) FuzzIteration(id uint64) (uint64, bool) {
 	if len(active) < len(clients) {
 		log.Println("client group has been reduced to", len(active))
 		if len(active) <= 1 {
-			return 0, true
+			return 0, true, true
 		}
 	}
 
@@ -105,15 +109,15 @@ func (cg *ClientGroup) FuzzIteration(id uint64) (uint64, bool) {
 		}
 	}
 	if !agree {
-		log.Printf("%d: NOT OK (seed=%x, size=%d, groupsize=%d)\n", req.Id, req.Seed, req.Size, len(results))
+		Logger.Printf("%d: NOT OK (seed=%x, size=%d, fuzzer=%x, groupsize=%d)\n", req.Id, req.Seed, req.Size, req.FuzzerHash, len(results))
 		for _, c := range results {
-			log.Printf("\t%s: hash=%x\n", c.MicroArch, c.Hash)
+			Logger.Printf("\t%s: hash=%x\n", c.MicroArch, c.Hash)
 		}
 	} else {
 		log.Printf("%d: OK (seed=%x, size=%d, hash=%x, groupsize=%d)\n", req.Id, req.Seed, req.Size, hash, len(results))
 	}
 
-	return req.Size, agree
+	return req.Size * uint64(len(active)), agree, false
 }
 
 func (cg *ClientGroup) Append(c *Client) {

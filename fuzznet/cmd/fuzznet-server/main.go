@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -28,12 +29,19 @@ func main() {
 
 	listener, err := net.Listen("tcp", ":8090")
 	if err != nil {
-		fmt.Println("Error listening:", err.Error())
+		fmt.Println("error listening:", err.Error())
 		os.Exit(1)
 	}
 	defer listener.Close()
 
 	fmt.Println("Server listening on port 8090")
+
+	f, err := os.Create("failed.log")
+	if err != nil {
+		log.Fatal(err)
+	}
+	w := io.MultiWriter(os.Stdout, f)
+	fuzznet.Logger = log.New(w, "fuzznet", log.LstdFlags)
 
 	go func() {
 		for {
@@ -47,7 +55,7 @@ func main() {
 		}
 	}()
 
-	http.HandleFunc("/fuzznet", dashboard)
+	http.HandleFunc("/fuzznet", serveDashboard)
 	go http.ListenAndServe(":8091", nil)
 
 	for {

@@ -12,11 +12,13 @@ type ClientCluster struct {
 	Instructions uint64
 	Total        uint64
 	Failed       uint64
+	Changed      atomic.Bool
 }
 
 func (cc *ClientCluster) Append(c *Client) {
 	cc.Lock.Lock()
 	cc.Clients = append(cc.Clients, c)
+	cc.Changed.Store(true)
 	cc.Lock.Unlock()
 }
 
@@ -38,7 +40,7 @@ func (cc *ClientCluster) CreateGroup(free []*Client) (*ClientGroup, []*Client) {
 	return cg, newfree
 }
 
-func (cc *ClientCluster) FuzzIteration() {
+func (cc *ClientCluster) GetGroups() []*ClientGroup {
 	var groups []*ClientGroup
 
 	cc.Lock.Lock()
@@ -53,22 +55,36 @@ func (cc *ClientCluster) FuzzIteration() {
 	}
 	cc.Lock.Unlock()
 
+	return groups
+}
+
+func (cc *ClientCluster) FuzzIteration() {
+	groups := cc.GetGroups()
+
 	if len(groups) < 1 {
 		time.Sleep(time.Second)
 	}
+
+	cc.Changed.Store(false)
 
 	var wg sync.WaitGroup
 	for _, cg := range groups {
 		if len(cg.Clients) > 1 {
 			wg.Add(1)
 			go func(cg *ClientGroup) {
-				instrs, ok := cg.FuzzIteration(atomic.LoadUint64(&cc.Total))
-				atomic.AddUint64(&cc.Total, 1)
-				if !ok {
-					atomic.AddUint64(&cc.Failed, 1)
+				// Continue running iterations until the cluster changes (new client joins).
+				for {
+					instrs, ok, disconnect := cg.FuzzIteration(atomic.LoadUint64(&cc.Total))
+					atomic.AddUint64(&cc.Total, 1)
+					if !ok {
+						atomic.AddUint64(&cc.Failed, 1)
+					}
+					atomic.AddUint64(&cc.Instructions, instrs)
+					if cc.Changed.Load() || disconnect {
+						wg.Done()
+						break
+					}
 				}
-				atomic.AddUint64(&cc.Instructions, instrs)
-				wg.Done()
 			}(cg)
 		}
 	}

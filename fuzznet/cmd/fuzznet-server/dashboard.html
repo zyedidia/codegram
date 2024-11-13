@@ -4,19 +4,27 @@
 
 <h1>FuzzNet Dashboard</h1>
 
-<h2>Available Machines</h2>
-
-{{.machines}}
-
-<h2>Active Groups</h2>
-
-{{.groups}}
-
 <h2>Information</h2>
 
 {{.info}}
 
+<h2>Available Machines</h2>
+
+{{.machines}}
+
 <h2>Join the FuzzNet</h2>
+
+Download: <a href="https://www.scs.stanford.edu/~zyedidia/fuzznet-client">fuzznet-client</a> (linux/amd64)<br><br>
+
+Without bubblewrap: <pre>./fuzznet-client</pre>
+
+With bubblewrap: <pre>bwrap --ro-bind /lib /lib --ro-bind /lib64 /lib64 --ro-bind /usr/bin/taskset /usr/bin/taskset --ro-bind /run /run --ro-bind /sys /sys --ro-bind /etc /etc --dev /dev --bind $PWD /fuzznet /fuzznet/fuzznet-client</pre>
+
+<img width="120px" src="https://www.scs.stanford.edu/~zyedidia/unclesam_fuzznet.png">
+
+<h2>Active Groups</h2>
+
+{{.groups}}
 
 </body>
 </html>
