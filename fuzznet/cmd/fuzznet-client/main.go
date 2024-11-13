@@ -50,7 +50,7 @@ var lock sync.Mutex
 
 var n uint64
 
-func run(conn net.Conn, cpu int, brand string) {
+func run(conn net.Conn, cpu int, brand, runner string) {
 	msg, err := json.Marshal(&fuzznet.Register{
 		Arch:      runtime.GOARCH,
 		MicroArch: brand,
@@ -76,7 +76,7 @@ func run(conn net.Conn, cpu int, brand string) {
 	}
 
 	lock.Lock()
-	fuzzer := fmt.Sprintf("./lfi-fuzz-%x", regresp.FuzzerHash)
+	fuzzer := fmt.Sprintf("./fuzzers/lfi-fuzz-%x", regresp.FuzzerHash)
 	if _, err := os.Stat(fuzzer); err != nil {
 		f, err := os.Create(fuzzer)
 		if err != nil {
@@ -110,7 +110,7 @@ func run(conn net.Conn, cpu int, brand string) {
 
 		fmt.Fprintf(Log, "%d: fuzz request (seed=%x, size=%d)\n", req.Id, req.Seed, req.Size)
 
-		hash := runcmd("taskset", "-c", fmt.Sprintf("%d", cpu), fuzzer, "-s", fmt.Sprintf("%x", req.Seed), "-n", fmt.Sprintf("%d", req.Size), "-r")
+		hash := runcmd("taskset", "-c", fmt.Sprintf("%d", cpu), fmt.Sprintf("%s %s", runner, fuzzer), "-s", fmt.Sprintf("%x", req.Seed), "-n", fmt.Sprintf("%d", req.Size), "-r")
 
 		resp := fuzznet.FuzzResponse{
 			Id:   req.Id,
@@ -128,10 +128,14 @@ func main() {
 	cpu := flag.Int("cpu", 0, "CPU core to use for fuzzing")
 	cores := flag.Int("cores", 1, "number of CPU cores to use")
 	id := flag.Int("id", 0, "identifier for spawning multiple independent fuzzers on the same machine")
+	runner := flag.String("runner", "", "tool for running fuzzer (such as QEMU)")
 	flag.Parse()
 
+	os.MkdirAll("fuzzers", os.ModePerm)
+	os.MkdirAll("logs", os.ModePerm)
+
 	Log = &lumberjack.Logger{
-		Filename:   fmt.Sprintf("fuzznet-%d.log", *id),
+		Filename:   fmt.Sprintf("logs/fuzznet-%s%d.log", *runner, *id),
 		MaxSize:    50,
 		MaxBackups: 3,
 		MaxAge:     28,
@@ -142,6 +146,14 @@ func main() {
 
 	if !cpuid.CPU.Supports(cpuid.SSE, cpuid.SSE2, cpuid.SSE3, cpuid.SSE4, cpuid.SSE42) {
 		log.Fatal(brand, "does not support SSE1-4.2")
+	}
+	if !cpuid.CPU.Supports(cpuid.BMI2) {
+		log.Fatal(brand, "does not support BMI2")
+	}
+
+	runexe, err := exec.LookPath(*runner)
+	if err != nil {
+		log.Fatal("could not find", *runner)
 	}
 
 	if *id != 0 {
@@ -162,9 +174,8 @@ func main() {
 					time.Sleep(5 * time.Second)
 					continue
 				}
-				run(conn, *cpu+i, brand)
+				run(conn, *cpu+i, brand, runexe)
 			}
-			wg.Done()
 		}(i)
 	}
 	wg.Wait()
