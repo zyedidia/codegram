@@ -11,4 +11,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
-require golang.org/x/sys v0.22.0 // indirect
+require (
+	github.com/dominikbraun/graph v0.23.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
+)
