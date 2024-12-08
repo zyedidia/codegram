@@ -10,7 +10,7 @@ import (
 
 func isimm(typ string) bool {
 	switch typ {
-	case "int8_t", "int16_t", "int32_t", "int64_t", "uintptr_t", "const void*":
+	case "const void*":
 		return true
 	}
 	return false
@@ -42,6 +42,16 @@ func vector(typ string) string {
 		return "dr_regs"
 	case "FeRegCR":
 		return "cr_regs"
+	case "int8_t":
+		return "imm8s"
+	case "int16_t":
+		return "imm16s"
+	case "int32_t":
+		return "imm32s"
+	case "int64_t":
+		return "imm64s"
+	case "uintptr_t":
+		return "immuptrs"
 	}
 	return "<error>"
 }
@@ -52,22 +62,31 @@ func param(p string) (string, string) {
 	return typ, arg
 }
 
+func writeGenerator(name, flags string, allfields []string) {
+	fmt.Printf("\tn = %s(buf, immb, %s", name, flags)
+	if len(allfields) != 0 {
+		fmt.Printf(", ")
+	}
+	for i, f := range allfields {
+		_, arg := param(strings.TrimSpace(f))
+		fmt.Print(arg)
+		if i != len(allfields)-1 {
+			fmt.Print(", ")
+		}
+	}
+	fmt.Println(");")
+	fmt.Println("\tif (n) cbinsn(buf, immb, n);")
+	fmt.Println("\tmemset(immb, 0, 15);")
+}
+
 func writeIterator(name string, allfields, fields []string) {
 	if len(fields) == 0 {
-		fmt.Printf("\tn = %s(buf, immb, 0", name)
-		if len(allfields) != 0 {
-			fmt.Printf(", ")
-		}
-		for i, f := range allfields {
-			_, arg := param(strings.TrimSpace(f))
-			fmt.Print(arg)
-			if i != len(allfields)-1 {
-				fmt.Print(", ")
-			}
-		}
-		fmt.Println(");")
-		fmt.Println("\tif (n) cbinsn(buf, immb, n);")
-		fmt.Println("\tmemset(immb, 0, 15);")
+		writeGenerator(name, "0", allfields)
+		// LFI only uses %gs with 32-bit registers
+		writeGenerator(name, "FE_SEG(FE_GS) | FE_ADDR32", allfields)
+		// Technically we don't need to understand %fs for LFI, but might as
+		// well have it.
+		writeGenerator(name, "FE_SEG(FE_FS)", allfields)
 		return
 	}
 
@@ -77,6 +96,10 @@ func writeIterator(name string, allfields, fields []string) {
 	if isimm(typ) {
 		fmt.Print("\t{\n")
 		fmt.Printf("\t%s %s = 0;\n", typ, arg)
+		writeIterator(name, allfields, fields[1:])
+		fmt.Print("\t}\n")
+		fmt.Print("\t{\n")
+		fmt.Printf("\t%s %s = buf;\n", typ, arg)
 		writeIterator(name, allfields, fields[1:])
 		fmt.Print("\t}\n")
 		return

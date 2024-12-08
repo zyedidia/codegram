@@ -183,13 +183,23 @@ std::vector<FeMem> mem;
 
 std::vector<FeMemV> memv;
 
+std::vector<int32_t> disps = {0, 1, 0xff+1, 0xffff+1};
+
+std::vector<int8_t> imm8s = {0, 1};
+std::vector<int16_t> imm16s = {0, 1, 0xff+1};
+std::vector<int32_t> imm32s = {0, 1, 0xff+1, 0xffff+1};
+std::vector<int64_t> imm64s = {0, 1, 0xff+1, 0xffff+1, 0xffffffffL+1};
+std::vector<uintptr_t> immuptrs = {0, 1, 0xff+1, 0xffff+1, 0xffffffffL+1};
+
 static void
 makemem()
 {
     for (auto& base : gpmem_regs) {
         for (auto& idx : gpmem_regs) {
-            for (auto& scale : scales) {
-                mem.push_back(FE_MEM(base, scale, idx, 0));
+            for (auto& off : disps) {
+                for (auto& scale : scales) {
+                    mem.push_back(FE_MEM(base, scale, idx, off));
+                }
             }
         }
     }
@@ -235,6 +245,28 @@ insn(Cudd& mgr, uint8_t* data, bool* immb, size_t size, ADD& total)
 static Cudd mgr(0, 0);
 static ADD total = mgr.addZero();
 
+static bool
+filtermnem(FdInstr* instr)
+{
+    switch (FD_TYPE(instr)) {
+#include "decl.instrs"
+    default:
+        return false;
+    }
+}
+
+static bool
+filter(FdInstr* instr)
+{
+    // for (size_t i = 0; i < 4; i++) {
+    //     if (FD_OP_TYPE(instr, i) == FD_OT_MEM && FD_TYPE(instr) != FDI_LEA) {
+    //         return false;
+    //     }
+    // }
+    // return filtermnem(instr);
+    return true;
+}
+
 static void
 cbinsn(uint8_t* buf, bool* immb, size_t sz)
 {
@@ -245,8 +277,9 @@ cbinsn(uint8_t* buf, bool* immb, size_t sz)
     FdInstr instr;
     int ret = fd_decode(buf, sz, 64, 0, &instr);
     if (ret == (int) sz) {
-        total = insn(mgr, buf, immb, sz, total);
-
+        if (filter(&instr)) {
+            total = insn(mgr, buf, immb, sz, total);
+        }
         count++;
     }
 }
@@ -264,6 +297,27 @@ main()
     int n;
 
 #include "iter.inc"
+
+    for (int i = 1; i <= 9; i++) {
+        n = fe64_NOP(buf, i);
+        if (n) cbinsn(buf, immb, n);
+    }
+
+    {
+        uint8_t nop10[10] = {0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00};
+        uint8_t nop11[11] = {0x66, 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00};
+        uint8_t nop12[12] = {0x66, 0x66, 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00};
+        uint8_t nop13[13] = {0x66, 0x66, 0x66, 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00};
+        uint8_t nop14[14] = {0x66, 0x66, 0x66, 0x66, 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00};
+        uint8_t nop15[15] = {0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00};
+        cbinsn(nop10, immb, sizeof(nop10));
+        cbinsn(nop11, immb, sizeof(nop11));
+        cbinsn(nop12, immb, sizeof(nop12));
+        cbinsn(nop13, immb, sizeof(nop13));
+        cbinsn(nop14, immb, sizeof(nop14));
+        cbinsn(nop15, immb, sizeof(nop15));
+    }
+
 
     fprintf(stderr, "[stderr] total instructions: %ld\n", count);
     fprintf(stderr, "[stderr] bdd nodes: %d\n", total.nodeCount());
