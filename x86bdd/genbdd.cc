@@ -316,6 +316,9 @@ main()
         cbinsn(nop13, immb, sizeof(nop13));
         cbinsn(nop14, immb, sizeof(nop14));
         cbinsn(nop15, immb, sizeof(nop15));
+
+        uint8_t pause[2] = {0xf3, 0x90};
+        cbinsn(pause, immb, sizeof(pause));
     }
 
 

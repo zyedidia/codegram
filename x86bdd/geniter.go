@@ -82,6 +82,7 @@ func writeGenerator(name, flags string, allfields []string) {
 func writeIterator(name string, allfields, fields []string) {
 	if len(fields) == 0 {
 		writeGenerator(name, "0", allfields)
+		writeGenerator(name, "FE_ADDR32", allfields)
 		// LFI only uses %gs with 32-bit registers
 		writeGenerator(name, "FE_SEG(FE_GS) | FE_ADDR32", allfields)
 		// Technically we don't need to understand %fs for LFI, but might as
