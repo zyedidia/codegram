@@ -110,7 +110,12 @@ func run(conn net.Conn, cpu int, brand, runner string) {
 
 		fmt.Fprintf(Log, "%d: fuzz request (seed=%x, size=%d)\n", req.Id, req.Seed, req.Size)
 
-		hash := runcmd("taskset", "-c", fmt.Sprintf("%d", cpu), fmt.Sprintf("%s %s", runner, fuzzer), "-s", fmt.Sprintf("%x", req.Seed), "-n", fmt.Sprintf("%d", req.Size), "-r")
+		run := fuzzer
+		if runner != "" {
+			run = fmt.Sprintf("%s %s", runner, fuzzer)
+		}
+
+		hash := runcmd("taskset", "-c", fmt.Sprintf("%d", cpu), run, "-s", fmt.Sprintf("%x", req.Seed), "-n", fmt.Sprintf("%d", req.Size), "-r")
 
 		resp := fuzznet.FuzzResponse{
 			Id:   req.Id,
