@@ -152,7 +152,7 @@ func main() {
 	}
 
 	runexe, err := exec.LookPath(*runner)
-	if err != nil {
+	if *runner != "" && err != nil {
 		log.Fatal("could not find", *runner)
 	}
 
