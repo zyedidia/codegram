@@ -9,6 +9,8 @@ return b{
         go run cmd/bddconv/bddconv.go $input > $output
     $ generated/%.bdd.c: generated/%.bdd.txt
         go run cmd/add/add.go $input > $output
+    $ generated/%.bdd.bin: generated/%.bdd.txt
+        go run cmd/add/add.go -binary $input > $output
     $ generated/%.encode.c: generated/%.bdd.txt
         go run cmd/add/add.go -encode $input > $output
     $ generated/%.bdd.dot: generated/%.bdd.txt

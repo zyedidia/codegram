@@ -72,26 +72,7 @@ func writeCv2(nodes []Node, maxRank int, w io.Writer) {
 	fmt.Fprintln(w, "#include <stdbool.h>")
 	fmt.Fprintln(w, "static int evaluate(uint8_t *input){")
 
-	parents := make(map[uint16]int)
-	entry := 0
-	for _, n := range nodes {
-		parents[n.id] = 0
-	}
-	for _, n := range nodes {
-		parents[n.lo]++
-		parents[n.hi]++
-	}
-	found := false
-	for n, p := range parents {
-		if p == 0 {
-			entry = int(n)
-			found = true
-		}
-	}
-	if !found {
-		fmt.Fprintln(os.Stderr, "no entry node found")
-		os.Exit(1)
-	}
+	entry := FindEntry(nodes)
 	fmt.Fprintf(w, "\tgoto node%d;\n", entry)
 
 	for _, n := range nodes {
@@ -169,12 +150,58 @@ func writeEncoder(nodes []Node, maxRank int, w io.Writer) {
 	fmt.Fprintln(w, "}")
 }
 
+func BinaryBool(x bool) uint8 {
+	if x {
+		return 1
+	}
+	return 0
+}
+
+func FindEntry(nodes []Node) int {
+	parents := make(map[uint16]int)
+	entry := 0
+	for _, n := range nodes {
+		parents[n.id] = 0
+	}
+	for _, n := range nodes {
+		parents[n.lo]++
+		parents[n.hi]++
+	}
+	found := false
+	for n, p := range parents {
+		if p == 0 {
+			entry = int(n)
+			found = true
+		}
+	}
+	if !found {
+		fmt.Fprintln(os.Stderr, "no entry node found")
+		os.Exit(1)
+	}
+	return entry
+}
+
 func writeBinary(nodes []Node, w io.Writer) {
+	idx := make(map[uint16]int)
 	buf := &bytes.Buffer{}
+	for i, n := range nodes {
+		idx[n.id] = i
+	}
+	binary.Write(buf, binary.LittleEndian, uint16(idx[uint16(FindEntry(nodes))]))
 	for _, n := range nodes {
 		binary.Write(buf, binary.LittleEndian, uint16(n.v))
-		binary.Write(buf, binary.LittleEndian, uint16(n.lo))
-		binary.Write(buf, binary.LittleEndian, uint16(n.hi))
+		lo := n.lo
+		if !n.isTerminallo {
+			lo = uint16(idx[lo])
+		}
+		hi := n.hi
+		if !n.isTerminalhi {
+			hi = uint16(idx[hi])
+		}
+		binary.Write(buf, binary.LittleEndian, lo)
+		binary.Write(buf, binary.LittleEndian, hi)
+		binary.Write(buf, binary.LittleEndian, BinaryBool(n.isTerminalhi))
+		binary.Write(buf, binary.LittleEndian, BinaryBool(n.isTerminallo))
 	}
 	buf.WriteTo(w)
 }
